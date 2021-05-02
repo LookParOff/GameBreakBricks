@@ -1,3 +1,5 @@
+import random
+
 class Tree2D:
     def __init__(self, x=None, y=None):
         self.root = None
@@ -95,6 +97,11 @@ class Tree2D:
                     node_to_insert.level = level + 1
                     break
             level += 1
+
+    def insert_list(self, list_of_points: list):
+        random.shuffle(list_of_points)  # this almost certainly make binary tree balanced
+        for point in list_of_points:
+            self.insert(point[0], point[1])
 
     def delete(self, x, y, node=None):
         if node is None:
