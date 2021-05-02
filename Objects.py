@@ -14,25 +14,26 @@ class ObjectsOfGame:
 
 
 class Ball(ObjectsOfGame):
-    def __init__(self, area, pos: tuple, angle=math.pi / 3, radius=10, color=(255, 150, 90)):
+    def __init__(self, area, pos: tuple, dx, dy, angle=math.pi / 3, radius=10, color=(255, 150, 90)):
         self.velocity = 7
         self.radius = radius
-        self.angle = angle
+        # self.angle = angle
+        self.deltas = [dx, dy]
         super().__init__(area, pos, color, "Ball")
 
     def draw(self):
         pygame.draw.circle(self.area, self.color, self.pos, self.radius, self.radius)
         pygame.draw.circle(self.area, (255, 0, 0), self.pos, 1, 1)
 
-    def move(self, angle):
-        self.angle = angle
-        self.pos[0] += round(math.sin(angle + math.pi / 2) * self.velocity)
-        self.pos[1] += round(math.cos(angle + math.pi / 2) * self.velocity)
+    def move(self, dx, dy):
+        self.deltas = [dx, dy]
+        self.pos[0] += int(dx * self.velocity)
+        self.pos[1] += int(dy * self.velocity)
         self.draw()
 
 
 class Square(ObjectsOfGame):
-    def __init__(self, area, pos: tuple, side=60, color=(0, 0, 200)):
+    def __init__(self, area, pos: tuple, side=50, color=(0, 0, 200)):
         self.side = side
         super().__init__(area, pos, color, "Square")
         self.pointList = [self.pos[0], self.pos[1]], [self.pos[0] + self.side, self.pos[1]], \

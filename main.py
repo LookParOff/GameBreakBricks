@@ -1,6 +1,9 @@
+import numpy as np
 import random
 import time
+import math
 from Objects import *
+from Structures import Tree2D
 pygame.init()
 timer = pygame.time.Clock()
 WIDTH = 450
@@ -78,53 +81,41 @@ def isCollisionOfSquare(ball: Ball, squareList):
     return ""
 
 
-def isCollision(ball, squareList):
-    colSq = isCollisionOfSquare(ball, squareList)
-    colAr = isCollisionOfArea(ball)
-    if len(colSq) == len(colAr) == 0:
-        return ""
-    if len(colAr) != 0 and len(colSq) == 0:
-        return colAr
-    if len(colAr) == 0 and len(colSq) != 0:
-        return colSq
-    if len(colAr) != 0 and len(colSq) != 0:
-        return "xy"
-
-
-def giveAngleAfterCollision(a: Ball, coordinateOfCollision):
-    if coordinateOfCollision == "x":
-        if 0 <= a.angle < math.pi / 2:
-            return math.pi - a.angle
-        if math.pi / 2 < a.angle <= math.pi:
-            return abs(math.pi - a.angle)
-        if math.pi < a.angle < 3 * math.pi / 2:
-            return -(a.angle - math.pi) + 2 * math.pi
-        if 3 * math.pi / 2 < a.angle <= 2 * math.pi:
-            return 2 * math.pi - a.angle + math.pi
-        else:
-            print(a)
-            raise WrongAngleWhichWeDidNotExpected(a.angle)
-    elif coordinateOfCollision == "y":
-        if 0 < a.angle <= math.pi / 2:
-            return (a.angle - 2 * a.angle) + 2 * math.pi
-        if math.pi / 2 < a.angle < math.pi:
-            return (math.pi - a.angle) + math.pi
-        if math.pi < a.angle <= 3 * math.pi / 2:
-            return a.angle - 2 * (a.angle - math.pi)
-        if 3 * math.pi / 2 < a.angle < 2 * math.pi:
-            return 2 * math.pi - a.angle
-        else:
-            print(a)
-            raise WrongAngleWhichWeDidNotExpected(a.angle)
-
-    elif coordinateOfCollision == "xy":
-        if a.angle + math.pi > 2 * math.pi:
-            return a.angle - math.pi
-        return a.angle + math.pi
-    elif coordinateOfCollision == "corner":
-        return a.angle
-    else:
-        return a.angle
+def isCollision(ball, tree):
+    points = tree.request_of_area(ball.pos[0], ball.pos[1], ball.radius)  # all points, inside ball.
+    if len(points) != 0:
+        # return ball.angle + np.pi / 2
+        m = 2**32
+        point = points[0]
+        for p in points:
+            d = distanceBetweenPointAndPoint(ball.pos, p)
+            if d < m:
+                m = d
+                point = p
+        theta = np.arctan(ball.deltas[1] / ball.deltas[0])
+        if ball.deltas[1] < 0:
+            theta += np.pi
+        v1 = np.sqrt(ball.deltas[0] ** 2 + ball.deltas[1] ** 2)
+        v2 = 0
+        x1 = ball.pos
+        # if abs(x1[0] - point[0]) < abs(x1[1] - point[1]):
+        #     x2 = (x1[0], point[1])
+        # else:
+        #     x2 = (point[0], x1[1])
+        x2 = point
+        fi = angleBetweenTwoPoints(x1, x2)
+        m1 = 1
+        m2 = 2**32
+        # ball collision
+        v1_X = v1 * np.cos(theta - fi) * (m1 - m2) * np.cos(fi) / (m1 + m2) + v1 * np.sin(theta - fi) * np.cos(fi + np.pi / 2)
+        v1_Y = v1 * np.cos(theta - fi) * (m1 - m2) * np.sin(fi) / (m1 + m2) + v1 * np.sin(theta - fi) * np.sin(fi + np.pi / 2)
+        if np.isnan(v1_X):
+            return ball.deltas
+        print([v1_X, v1_Y], ball.deltas)
+        return v1_X, v1_Y
+    return ball.deltas
+    # https://stackru.com/questions/35517796/2d-uprugaya-sharikovaya-fizika
+    # https://williamecraver.wixsite.com/elastic-equations
 
 
 def angleBetweenTwoPoints(aPoint, bPoint):
@@ -144,24 +135,48 @@ def angleBetweenTwoPoints(aPoint, bPoint):
         return 2 * math.pi - angle
 
 
+def updateTreeOfCollisionPoints(tree: Tree2D, newSquare: Square, approx):
+    newPoints = []
+    for i in range(approx + 1):
+        newPoints.append((newSquare.pointList[0][0] + newSquare.side * i // approx, newSquare.pointList[0][1]))
+        newPoints.append((newSquare.pointList[1][0], newSquare.pointList[1][1] + newSquare.side * i // approx))
+        newPoints.append((newSquare.pointList[2][0] - newSquare.side * i // approx, newSquare.pointList[2][1]))
+        newPoints.append((newSquare.pointList[3][0], newSquare.pointList[3][1] - newSquare.side * i // approx))
+    tree.insert_list(newPoints)
+
+
 def mainDraw():
     # TODO we can store points of squares in Tree2d, or points of circle. What will be effective?
     # I think store points of circle will be effective, cos so count of requests to areas(squares) will be less
     FPS = 30
+    approx = 50  # count of collision points on each side
     area = pygame.display.set_mode((WIDTH, HEIGHT))
     areaColor = (65, 50, 75)
-    # area.fill(areaColor)
+    area.fill(areaColor)
 
     spawnPlace = (WIDTH // 2, HEIGHT // 2)
     spawnPlace = (167, 364)
     ballsList = []
     squareList = [Square(area, (250, 250))]
+    treeOfCollision = Tree2D()
+    updateTreeOfCollisionPoints(treeOfCollision, squareList[0], approx)
 
-    for _ in range(0, 10):
-        angle = random.random() * 2 * math.pi
-        sp = (int(random.random() * WIDTH/2), int(random.random() * HEIGHT/2.5))
-        ball = Ball(area, sp, angle)
+    for _ in range(0, 0):
+        # angle = random.random() * 2 * math.pi
+        angle = 0  # 3 * np.pi / 2 + np.pi / 6
+        sp = (int(random.random() * WIDTH/3), int(random.random() * HEIGHT/3.5))
+        # sp = (260, 100)
+        dx, dy = math.sin(angle + math.pi / 2), math.cos(angle + math.pi / 2)
+        ball = Ball(area, sp, dx, dy)
         ballsList.append(ball)
+    for i in range(10):
+        sq = Square(area, (i * 51, 300))
+        squareList.append(sq)
+        updateTreeOfCollisionPoints(treeOfCollision, sq, approx)
+
+        sq = Square(area, (i * 51, 500))
+        squareList.append(sq)
+        updateTreeOfCollisionPoints(treeOfCollision, sq, approx)
 
     while True:
         area.fill(areaColor)
@@ -172,27 +187,31 @@ def mainDraw():
             if event.type == pygame.MOUSEBUTTONUP:
                 if event.button == 1:
                     angle = angleBetweenTwoPoints(spawnPlace, event.pos)
+                    dx, dy = math.sin(angle + math.pi / 2), math.cos(angle + math.pi / 2)
                     print("New ball with angle:", angle)
-                    ballsList.append(Ball(area, spawnPlace, angle))
+                    ballsList.append(Ball(area, spawnPlace, dx, dy))
                 if event.button == 2:
                     squareList.append(Square(area, event.pos))
+                    updateTreeOfCollisionPoints(treeOfCollision, squareList[-1], approx)
                 if event.button == 3:
                     spawnPlace = (event.pos[0], event.pos[1])
                     print("New Spawn:", spawnPlace)
         start = time.time()
 
+        for index, ball in enumerate(ballsList):
+            dx, dy = isCollision(ball, treeOfCollision)
+            ball.move(dx, dy)
+            if ball.pos[0] > WIDTH or ball.pos[0] < 0 or ball.pos[1] > HEIGHT or ball.pos[1] < 0:
+                ballsList.pop(index)
+
         for ball in ballsList:
-            coordinateOfCollision = isCollision(ball, squareList)
-            angle = giveAngleAfterCollision(ball, coordinateOfCollision)
-            ball.move(angle)
-        for ball, square in zip(ballsList, squareList):
             ball.draw()
+        for square in squareList:
             square.draw()
 
         end = time.time()
         pygame.display.update()
         timer.tick(FPS)
-        print(len(ballsList))
         # print("Time of cycle", end - start)
 
 
