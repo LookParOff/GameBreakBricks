@@ -1,10 +1,11 @@
 import random
 
+
 class Tree2D:
-    def __init__(self, x=None, y=None):
+    def __init__(self, x=None, y=None, value=None):
         self.root = None
         if x is not None and y is not None:
-            self.root = Node(x, y)
+            self.root = Node(x, y, value)
             self.root.level = 0
 
     def __eq__(self, other):
@@ -47,13 +48,13 @@ class Tree2D:
                 return None
         return node
 
-    def insert(self, x, y):
+    def insert(self, x, y, value=None):
         if self.root is None:
-            self.root = Node(x, y)
+            self.root = Node(x, y, value)
             self.root.level = 0
             return
         node = self.root
-        node_to_insert = Node(x, y)
+        node_to_insert = Node(x, y, value)
         level = 0
         while True:
             if level % 2 == 0:
@@ -98,10 +99,10 @@ class Tree2D:
                     break
             level += 1
 
-    def insert_list(self, list_of_points: list):
+    def insert_list(self, list_of_points: list, value=None):
         random.shuffle(list_of_points)  # this almost certainly make binary tree balanced
         for point in list_of_points:
-            self.insert(point[0], point[1])
+            self.insert(point[0], point[1], value)
 
     def delete(self, x, y, node=None):
         if node is None:
@@ -178,7 +179,7 @@ class Tree2D:
             # if x0 - radius <= node.x <= x0 + radius and y0 - radius <= node.y <= y0 + radius:  # rectangle
             #     points.append((node.x, node.y))
             if (x0 - node.x)**2 + (y0 - node.y)**2 <= radius**2:
-                points.append((node.x, node.y))
+                points.append((node.x, node.y, node.value))
             if node.xur < x0 - radius or node.yur < y0 - radius or x0 + radius < node.xbl or y0 + radius < node.ybl:
                 # all subtree with root node is not in circle
                 continue
@@ -190,9 +191,10 @@ class Tree2D:
 
 
 class Node:
-    def __init__(self, x, y):
+    def __init__(self, x, y, value):
         self.x = x
         self.y = y
+        self.value = value  # some info to store in Node
         self.level = None  # level of node in tree, count from root
         self.father = None
         self.left_link = None
@@ -203,13 +205,14 @@ class Node:
         self.xur = +float("inf")  # upper right
         self.yur = +float("inf")
         # TODO we can also in root store big rectangle, in which located all points in whole tree
+
     def __getitem__(self, item):
         if item == 0:
             return self.x
         return self.y
 
     def __copy__(self):
-        return Node(self.x, self.y)
+        return Node(self.x, self.y, self.value)
 
     def __eq__(self, other):
         # for tests
